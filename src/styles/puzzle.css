@@ -1,0 +1,280 @@
+/* THE ROAD · 공통 퍼즐 인터페이스 (명세 9장) */
+
+.puzzle-screen {
+  background: #000;
+  padding: 0;
+}
+
+/* 공통 프레임 컨테이너 (명세 9.3) */
+.puzzle-stage {
+  position: relative;
+  width: min(100vw, calc(100vh * 1.7779));
+  aspect-ratio: 1672 / 941;
+  margin: auto;
+  background: #000;
+  transition: box-shadow 500ms ease, filter 500ms ease;
+}
+
+.puzzle-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+
+.puzzle-frame--fallback {
+  background: linear-gradient(160deg, #1b150e, #0b0906);
+}
+
+/* 정답 성공 시 약한 따뜻한 빛 (명세 9.8) */
+.puzzle-stage--success {
+  box-shadow: 0 0 60px 8px var(--warm-glow), inset 0 0 80px rgba(240, 196, 120, 0.12);
+}
+
+/* 오답 시 약한 좌우 흔들림 (명세 9.8) */
+.puzzle-stage--shake {
+  animation: puzzle-shake 300ms ease;
+}
+
+@keyframes puzzle-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .puzzle-stage--shake {
+    animation: none;
+  }
+}
+
+/* ── 큐시트 표시 영역 (명세 9.4) ─────────────────────────────────────── */
+.cue-sheet-slot {
+  position: absolute;
+}
+
+.cue-sheet-button {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.cue-sheet-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 1.2%;
+}
+
+/* ── 정답 입력창 (명세 9.5) ──────────────────────────────────────────────
+   puzzle-frame.png의 실제 입력칸 색(rgb 171,153,135)을 실측해 그 위에
+   "얹은 스티커"가 아니라 종이 질감의 연장처럼 보이도록 그라디언트 + 인셋
+   음영으로 다듬었다. 이미지에 그려진 안내문구("정답 입력")는 이 배경이
+   불투명하게 덮으므로, 실제 표시되는 placeholder는 퍼즐별 문구(HTML)다. */
+.answer-input {
+  position: absolute;
+  background: linear-gradient(
+    180deg,
+    rgba(184, 167, 146, 0.96),
+    rgba(156, 137, 116, 0.96)
+  );
+  border: 1px solid rgba(46, 34, 22, 0.55);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 2px 4px rgba(35, 22, 10, 0.3),
+    inset 0 -1px 0 rgba(255, 244, 220, 0.16);
+  color: #2b2014;
+  font-size: clamp(15px, 1.5vw, 28px);
+  font-family: inherit;
+  letter-spacing: 0.02em;
+  padding: 0 2%;
+  outline: none;
+  transition: box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.answer-input::placeholder {
+  color: rgba(58, 46, 32, 0.55);
+}
+
+.answer-input:focus {
+  border-color: rgba(120, 90, 50, 0.85);
+  box-shadow:
+    inset 0 2px 4px rgba(35, 22, 10, 0.3),
+    inset 0 -1px 0 rgba(255, 244, 220, 0.16),
+    0 0 0 2px rgba(224, 178, 96, 0.45);
+}
+
+.answer-input:disabled {
+  opacity: 0.88;
+}
+
+/* ── 확인 버튼: "확인" 글자와 어두운 박스는 이미지에 이미 그려져 있으므로
+   투명 오버레이로 정확히 겹치고, hover/focus만 표현한다 (명세 9.6). */
+.confirm-button {
+  position: absolute;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.confirm-button:hover:not(:disabled) {
+  box-shadow: inset 0 0 22px rgba(224, 178, 96, 0.3);
+}
+
+.confirm-button:focus-visible {
+  outline: none;
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 2px rgba(224, 178, 96, 0.55);
+}
+
+.confirm-button:disabled {
+  cursor: default;
+}
+
+/* ── 나가기 버튼: 동일하게 이미지 위 투명 오버레이 (명세 9.7) ────────── */
+.exit-button {
+  position: absolute;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: box-shadow 160ms ease;
+}
+
+.exit-button:hover {
+  box-shadow: inset 0 0 18px rgba(196, 160, 100, 0.22);
+}
+
+.exit-button:focus-visible {
+  outline: none;
+  border-color: rgba(196, 160, 100, 0.7);
+  box-shadow: 0 0 0 2px rgba(196, 160, 100, 0.5);
+}
+
+/* ── 결과 / 상태 메시지 (명세 9.8) ──────────────────────────────────── */
+.puzzle-status {
+  position: absolute;
+  left: 50%;
+  bottom: 2%;
+  transform: translateX(-50%);
+  width: 92%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.puzzle-status > * {
+  pointer-events: auto;
+}
+
+.puzzle-message {
+  margin: 0;
+  padding: 8px 18px;
+  font-size: clamp(13px, 1.4vw, 18px);
+  border-radius: 6px;
+  background: var(--panel-bg-strong);
+  border: 1px solid var(--border);
+  text-align: center;
+}
+
+.puzzle-message--wrong {
+  color: #e8b9a4;
+  border-color: rgba(217, 139, 106, 0.55);
+}
+
+.puzzle-message--correct {
+  color: #f0d9a6;
+  border-color: var(--border-strong);
+}
+
+.puzzle-message--pending {
+  color: var(--text-dim);
+}
+
+.puzzle-pending-panel,
+.puzzle-completed-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.puzzle-pending-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ── 큐시트 확대 모달 (명세 9.4) ─────────────────────────────────────── */
+.cue-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.9);
+  cursor: zoom-out;
+  animation: fade-in 160ms ease;
+}
+
+.cue-modal-image {
+  max-width: 92vw;
+  max-height: 88vh;
+  object-fit: contain;
+}
+
+.cue-modal-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  min-height: 44px;
+  padding: 8px 16px;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--panel-bg-strong);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.cue-modal-close:hover {
+  border-color: var(--border-strong);
+}
