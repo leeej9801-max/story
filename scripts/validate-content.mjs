@@ -13,7 +13,7 @@
 // 텍스트 파싱은 이 저장소가 통제하는 manifest 서식(평면 객체 리터럴)에 맞춰져 있다.
 // 서식을 크게 바꾸면 이 스크립트도 함께 갱신한다.
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
@@ -78,11 +78,19 @@ for (const block of puzzleSrc.matchAll(/\{\s*\bid:\s*"puzzle-\d+"[\s\S]*?\n  \},
   const idM = text.match(/\bid:\s*"([^"]+)"/);
   const cueM = text.match(/\bcueImageSrc:\s*"([^"]+)"/);
   const ansM = text.match(/\bacceptedAnswers:\s*\[([\s\S]*?)\]/);
-  if (!idM || !cueM) continue;
+  if (!idM) continue;
+
+  const layoutM = text.match(/\blayout:\s*"([^"]+)"/);
+  const bgM = text.match(/\bbackgroundSrc:\s*"([^"]+)"/);
+  const successM = text.match(/\bsuccessImageSrc:\s*"([^"]+)"/);
 
   puzzles[idM[1]] = {
     id: idM[1],
-    cue: cueM[1],
+    layout: layoutM ? layoutM[1] : "frame",
+    cue: cueM ? cueM[1] : null,
+    background: bgM ? bgM[1] : null,
+    successImage: successM ? successM[1] : null,
+    brief: /\bbriefText:\s*$|\bbriefText:\s*"/m.test(text),
     answers: ansM ? ansM[1] : "",
     cuePending: /\bcuePending:\s*true/.test(text),
   };
@@ -139,9 +147,24 @@ if (!steps.some((s) => s.type === "gimmick" && s.gimmickId === "gimmick-06")) {
   err("기믹 6(gimmick-06) 단계가 시퀀스에 없습니다.");
 }
 
-// 퍼즐: 큐시트 존재 + 정답 확정
+// 퍼즐: 에셋 존재 + 정답 확정
 for (const p of Object.values(puzzles)) {
-  if (assetExists(p.cue)) {
+  if (p.layout === "scene") {
+    // 노이즈 퍼즐(7·8): 큐시트 대신 배경 장면 + 설명 문구 + 성공 이미지를 쓴다.
+    if (!p.background) {
+      err(`퍼즐 ${p.id}는 layout:"scene"인데 backgroundSrc가 없습니다.`);
+    } else if (!assetExists(p.background)) {
+      err(`퍼즐 ${p.id}의 배경 이미지가 없습니다: ${p.background}`);
+    }
+    if (!p.brief) {
+      warn(`퍼즐 ${p.id}는 layout:"scene"인데 briefText(설명 문구)가 없습니다.`);
+    }
+    if (p.cue) {
+      warn(`퍼즐 ${p.id}는 layout:"scene"이라 cueImageSrc를 쓰지 않습니다: ${p.cue}`);
+    }
+  } else if (!p.cue) {
+    err(`퍼즐 ${p.id}에 cueImageSrc가 없습니다.`);
+  } else if (assetExists(p.cue)) {
     if (p.cuePending) {
       warn(`퍼즐 ${p.id}는 cuePending인데 큐시트가 이미 있습니다: ${p.cue} → cuePending을 지우세요.`);
     }
@@ -149,6 +172,11 @@ for (const p of Object.values(puzzles)) {
     warn(`퍼즐 ${p.id}의 큐시트가 아직 없습니다(제작 중): ${p.cue}`);
   } else {
     err(`퍼즐 ${p.id}의 큐시트가 없습니다: ${p.cue}`);
+  }
+
+  // 정답 후 연출 이미지
+  if (p.successImage && !assetExists(p.successImage)) {
+    err(`퍼즐 ${p.id}의 성공 이미지가 없습니다: ${p.successImage}`);
   }
 
   if (p.answers.trim() === "") {
@@ -164,6 +192,74 @@ if (puzzles["puzzle-02"] && !/"0912"/.test(puzzles["puzzle-02"].answers)) {
 // 공통 퍼즐 프레임
 if (!assetExists("/assets/ui/puzzle-frame.png")) {
   err("공통 퍼즐 프레임이 없습니다: /assets/ui/puzzle-frame.png");
+}
+
+// ── 오디오 ──────────────────────────────────────────────────────────────────
+// 음원이 없어도 진행은 정상 동작하므로(재생 실패를 조용히 무시) 경고로만 알린다.
+// 남은 제작 목록을 빌드할 때마다 보여 주는 용도다.
+const audioSrc = readFileSync(join(dataDir, "audioManifest.ts"), "utf8");
+const audioDirs = {
+  COMMON: "/assets/audio/common",
+  PUZZLES: "/assets/audio/puzzles",
+  GIMMICKS: "/assets/audio/gimmicks",
+};
+const audioPaths = new Set();
+for (const m of audioSrc.matchAll(/\$\{(COMMON|PUZZLES|GIMMICKS)\}\/([^`\s]+)/g)) {
+  audioPaths.add(`${audioDirs[m[1]]}/${m[2]}`);
+}
+const missingAudio = [...audioPaths].filter((p) => !assetExists(p)).sort();
+if (missingAudio.length > 0) {
+  warn(`아직 없는 음원 ${missingAudio.length}개 (없어도 진행은 정상):`);
+  for (const p of missingAudio) warn(`    · ${p}`);
+}
+
+// 노이즈 퍼즐 성공 음성이 서로 같은 파일이면 두 번 같은 음성이 나온다.
+const voice1 = "/assets/audio/puzzles/noise-layer-01-cleared.mp3";
+const voice2 = "/assets/audio/puzzles/noise-layer-02-cleared.mp3";
+if (assetExists(voice1) && assetExists(voice2)) {
+  const a = readFileSync(join(publicDir, voice1.replace(/^\//, "")));
+  const b = readFileSync(join(publicDir, voice2.replace(/^\//, "")));
+  if (a.equals(b)) {
+    err("퍼즐 7·8의 성공 음성이 서로 같은 파일입니다. 서로 다른 음성을 넣어 주세요.");
+  }
+}
+
+// 음원 폴더 실수 잡기:
+//  - 음원 자리에 이미지가 들어온 경우 (성공 이미지가 audio 폴더에 들어온 적이 있다)
+//  - 확장자만 오디오이고 내용은 PNG인 경우
+//  - 매니페스트가 안 쓰는 파일이 들어온 경우 (파일명이 달라 조용히 무시되는 것을 막는다)
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+const audioRoot = join(publicDir, "assets", "audio");
+if (existsSync(audioRoot)) {
+  const walkAudio = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walkAudio(p);
+        continue;
+      }
+      const rel = p.slice(publicDir.length).replace(/\\/g, "/");
+
+      if (/\.(png|jpg|jpeg|gif|webp)$/i.test(entry.name)) {
+        err(`오디오 폴더에 이미지가 있습니다: ${rel} → 음원 파일이 맞는지 확인하세요.`);
+        continue;
+      }
+
+      if (!/\.(mp3|wav|ogg|m4a)$/i.test(entry.name)) continue;
+
+      if (readFileSync(p).subarray(0, 4).equals(PNG_MAGIC)) {
+        err(`${rel}는 확장자만 오디오이고 실제 내용은 PNG 이미지입니다.`);
+        continue;
+      }
+
+      // 매니페스트에 없는 음원 = 넣어도 재생되지 않는다.
+      if (!audioPaths.has(rel)) {
+        warn(`매니페스트가 참조하지 않는 음원입니다(재생되지 않음): ${rel}`);
+        warn(`    → audioManifest.ts의 파일명과 맞추거나, 매니페스트에 추가하세요.`);
+      }
+    }
+  };
+  walkAudio(audioRoot);
 }
 
 // 순환 참조 & 첫 단계 → complete 도달 가능

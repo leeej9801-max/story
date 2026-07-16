@@ -116,13 +116,16 @@
   white-space: pre-line;
 }
 
-/* ── 정답 입력창 (명세 9.5) ──────────────────────────────────────────────
+/* ── 정답 입력창 ─────────────────────────────────────────────────────────
    puzzle-frame.png의 실제 입력칸 색(rgb 171,153,135)을 실측해 그 위에
    "얹은 스티커"가 아니라 종이 질감의 연장처럼 보이도록 그라디언트 + 인셋
    음영으로 다듬었다. 이미지에 그려진 안내문구("정답 입력")는 이 배경이
-   불투명하게 덮으므로, 실제 표시되는 placeholder는 퍼즐별 문구(HTML)다. */
-.answer-input {
-  position: absolute;
+   불투명하게 덮으므로, 실제 표시되는 placeholder는 퍼즐별 문구(HTML)다.
+
+   노이즈 퍼즐(.noise-input)도 "동일한 입력 박스"를 쓰므로 생김새를 공유하고,
+   배치 방식만 다르게 한다(프레임=절대 좌표 / 노이즈=하단 flex 줄). */
+.answer-input,
+.noise-input {
   background: linear-gradient(
     180deg,
     rgba(184, 167, 146, 0.96),
@@ -142,11 +145,17 @@
   transition: box-shadow 160ms ease, border-color 160ms ease;
 }
 
-.answer-input::placeholder {
+.answer-input {
+  position: absolute;
+}
+
+.answer-input::placeholder,
+.noise-input::placeholder {
   color: rgba(58, 46, 32, 0.55);
 }
 
-.answer-input:focus {
+.answer-input:focus,
+.noise-input:focus {
   border-color: rgba(120, 90, 50, 0.85);
   box-shadow:
     inset 0 2px 4px rgba(35, 22, 10, 0.3),
@@ -154,7 +163,8 @@
     0 0 0 2px rgba(224, 178, 96, 0.45);
 }
 
-.answer-input:disabled {
+.answer-input:disabled,
+.noise-input:disabled {
   opacity: 0.88;
 }
 
@@ -234,6 +244,227 @@
 .puzzle-message--correct {
   color: #f0d9a6;
   border-color: var(--border-strong);
+}
+
+/* ══ 노이즈 퍼즐 7·8 (scene 레이아웃) ═══════════════════════════════════════
+   공통 프레임/큐시트를 쓰지 않는다.
+   노이즈 장면(1672×941)을 배경으로 깔고, 그 위에 목탄·양피지 설명 박스와
+   하단 입력줄만 얹는다. */
+
+.noise-stage {
+  position: relative;
+  width: min(100vw, calc(100vh * 1.7779));
+  aspect-ratio: 1672 / 941;
+  margin: auto;
+  background: #000;
+}
+
+.noise-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* ── 설명 박스: 그을린 양피지에 목탄으로 눌러쓴 쪽지 ──────────────────────
+   주인공(화면 가운데)을 가리지 않도록 머리 위 여백에 놓는다.
+   정답 후 성공 이미지의 '말씀'이 나타나는 자리와 같은 높이여서,
+   소음 → 말씀으로 해독되는 흐름이 자연스럽게 이어진다. */
+.noise-brief {
+  position: absolute;
+  left: 50%;
+  top: 6.5%;
+  width: 60%;
+  transform: translateX(-50%) rotate(-0.5deg); /* 손으로 놓아둔 듯 살짝 기울임 */
+  padding: 2.6% 4%;
+  background:
+    /* 오래되어 가장자리로 갈수록 그을린 양피지 */
+    radial-gradient(
+      112% 145% at 50% 40%,
+      rgba(198, 177, 142, 0.9) 30%,
+      rgba(163, 138, 101, 0.9) 64%,
+      rgba(104, 82, 55, 0.9) 100%
+    );
+  /* 손으로 찢은 가장자리 */
+  clip-path: polygon(
+    0.6% 5%, 3% 1%, 12% 3%, 24% 0.6%, 38% 2.6%, 52% 0.5%, 66% 2.8%, 80% 0.8%, 92% 3%, 99.2% 1.4%,
+    99.5% 14%, 98.4% 34%, 99.6% 56%, 98.6% 78%, 99.4% 93%, 97.4% 98.8%,
+    88% 99.4%, 74% 97.4%, 60% 99.5%, 46% 97.6%, 32% 99.6%, 18% 97.5%, 6% 99.3%, 1.2% 97.2%,
+    0.4% 80%, 1.4% 58%, 0.3% 36%, 1.2% 18%
+  );
+  /* clip-path는 box-shadow를 자르므로 그림자는 filter로 준다 */
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.75));
+}
+
+/* 종이 결(가로 섬유) + 얼룩 + 안쪽 그을음 */
+.noise-brief::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    /* 가장자리 그을음 — 찢긴 가장자리로 갈수록 타 들어간 자국 */
+    radial-gradient(96% 116% at 50% 50%, transparent 40%, rgba(46, 27, 10, 0.72) 100%),
+    /* 종이 섬유 */
+    repeating-linear-gradient(
+      92deg,
+      rgba(92, 66, 36, 0.055) 0 2px,
+      rgba(255, 246, 226, 0.05) 2px 4px
+    ),
+    /* 얼룩 */
+    radial-gradient(56% 42% at 16% 80%, rgba(88, 58, 26, 0.2), transparent 70%),
+    radial-gradient(48% 44% at 86% 20%, rgba(88, 58, 26, 0.18), transparent 70%);
+}
+
+.noise-brief-text {
+  position: relative;
+  margin: 0;
+  text-align: center;
+  white-space: pre-line;
+  color: #241a10;
+  font-size: clamp(11px, 1.24vw, 23px);
+  line-height: 1.78;
+  letter-spacing: 0.01em;
+  font-weight: 600;
+  /* 목탄이 종이에 눌리며 번진 느낌 */
+  text-shadow:
+    0 1px 0 rgba(255, 250, 236, 0.28),
+    0 0 4px rgba(40, 26, 12, 0.3);
+}
+
+/* ── 하단 입력줄: 입력창 + 정답 버튼 ─────────────────────────────────── */
+.noise-input-row {
+  position: absolute;
+  left: 50%;
+  top: 83%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: stretch;
+  gap: 1.4%;
+  width: 68%;
+  height: 11.5%;
+}
+
+.noise-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.9% 1.6%;
+  font-size: clamp(12px, 1.15vw, 21px);
+  line-height: 1.45;
+  resize: none;
+  overflow-y: auto;
+}
+
+/* 정답 버튼: 배경 이미지에 그려진 버튼이 없으므로 직접 그린다.
+   입력창과 같은 양피지 계열이되 눌린 가죽처럼 더 어둡게. */
+.noise-confirm {
+  flex: 0 0 15%;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  margin: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: clamp(13px, 1.25vw, 23px);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: #f0dfba;
+  background: linear-gradient(180deg, rgba(74, 52, 30, 0.96), rgba(44, 30, 17, 0.96));
+  border: 1px solid rgba(214, 178, 112, 0.7);
+  border-radius: 6px;
+  cursor: pointer;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 232, 190, 0.22),
+    0 6px 18px rgba(0, 0, 0, 0.5);
+  transition: box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.noise-confirm:hover:not(:disabled) {
+  border-color: rgba(240, 205, 140, 0.95);
+  box-shadow:
+    inset 0 0 22px rgba(224, 178, 96, 0.3),
+    0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.noise-confirm:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+.noise-confirm:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+/* 상태 문구 — 배경이 어두우므로 프레임 퍼즐과 달리 빛나는 글자로 */
+.noise-message {
+  position: absolute;
+  left: 50%;
+  top: 95.5%;
+  transform: translateX(-50%);
+  margin: 0;
+  white-space: nowrap;
+  font-size: clamp(11px, 1.05vw, 18px);
+  letter-spacing: 0.06em;
+  color: #e8b9a4;
+  text-shadow: 0 0 12px rgba(232, 89, 60, 0.55), 0 2px 6px rgba(0, 0, 0, 0.9);
+}
+
+/* 정답 직후 BGM이 잦아드는 3초 동안 표시 */
+.noise-message--correct {
+  color: #f0d9a6;
+  text-shadow: 0 0 16px rgba(240, 196, 120, 0.6), 0 2px 6px rgba(0, 0, 0, 0.9);
+  animation: noise-cleared-pulse 3000ms ease-out both;
+}
+
+@keyframes noise-cleared-pulse {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .noise-message--correct {
+    animation: none;
+  }
+}
+
+/* ── 정답 후 성공 이미지 (음성이 끝날 때까지 유지) ───────────────────── */
+.puzzle-reveal {
+  background: #000;
+}
+
+.puzzle-reveal-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  /* 노이즈가 걷히며 말씀이 드러나는 느낌 */
+  animation: reveal-in 900ms ease both;
+}
+
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    filter: brightness(1.5) blur(6px);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .puzzle-reveal-image {
+    animation: fade-in 300ms ease both;
+  }
 }
 
 /* ── 큐시트 확대 모달 ────────────────────────────────────────────────── */

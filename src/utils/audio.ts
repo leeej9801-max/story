@@ -110,6 +110,69 @@ export function playSfx(src: string, volume: number): void {
 }
 
 /**
+ * 성공 연출용 음성 재생 (노이즈 퍼즐 7·8).
+ *
+ * 성공 이미지는 음성이 끝날 때까지 유지되어야 한다. 그래서
+ *  - 음성이 정상 재생되면 실제 길이에 맞춰 onDone을 호출하고,
+ *  - 음원 파일이 아직 없으면 minHoldMs 후에 onDone을 호출한다.
+ * 어느 쪽이든 onDone은 정확히 한 번만 불린다.
+ *
+ * @returns 타이머를 정리하는 cleanup 함수
+ */
+export function playVoice(
+  src: string,
+  volume: number,
+  minHoldMs: number,
+  onDone: () => void,
+): () => void {
+  let done = false;
+  let timer = 0;
+
+  const finish = () => {
+    if (done) return;
+    done = true;
+    window.clearTimeout(timer);
+    onDone();
+  };
+
+  // 음원이 없거나 재생이 막혀도 진행이 멈추면 안 되므로 항상 예비 타이머를 건다.
+  timer = window.setTimeout(finish, minHoldMs);
+
+  try {
+    const el = new Audio(src);
+    el.volume = volume;
+    sfxEls.add(el);
+
+    // 음성이 예비 타이머보다 길면 실제 길이에 맞춰 연장한다.
+    el.addEventListener("loadedmetadata", () => {
+      if (done) return;
+      const durationMs = el.duration * 1000;
+      if (Number.isFinite(durationMs) && durationMs > minHoldMs) {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(finish, durationMs + 600);
+      }
+    });
+
+    el.addEventListener("ended", () => {
+      sfxEls.delete(el);
+      finish();
+    });
+
+    el.addEventListener("error", () => {
+      // 음원 없음 → 예비 타이머가 그대로 진행을 책임진다.
+      sfxEls.delete(el);
+    });
+
+    const p = el.play();
+    if (p && typeof p.catch === "function") p.catch(noop);
+  } catch {
+    /* 예비 타이머가 진행을 책임진다. */
+  }
+
+  return () => window.clearTimeout(timer);
+}
+
+/**
  * 퍼즐 BGM과 효과음을 즉시 모두 정지한다.
  * 영상 재생 직전에 호출해 영상 오디오와 겹치지 않게 한다. (지시서 5.4 / 11.3)
  */

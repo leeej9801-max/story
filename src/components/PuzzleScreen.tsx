@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PuzzleDefinition } from "../data/puzzleManifest";
 import { isPuzzleAnswerCorrect } from "../utils/normalizeAnswer";
 import { BGM_FADE_MS, VOLUME, getPuzzleAudio } from "../data/audioManifest";
-import { fadeOutBgm, playSfx, startBgm } from "../utils/audio";
+import { fadeOutBgm, playSfx, playVoice, startBgm } from "../utils/audio";
 import { CueSheetModal } from "./CueSheetModal";
 
 interface PuzzleScreenProps {
@@ -21,14 +21,22 @@ const INPUT_RECT = { left: "15.4%", top: "80.1%", width: "39.7%", height: "10.2%
 const CONFIRM_RECT = { left: "57.0%", top: "80.1%", width: "12.3%", height: "10.2%" };
 
 const SUBMIT_COOLDOWN_MS = 500;
-const DEFAULT_SUCCESS_HOLD_MS = 1400;
+/**
+ * 정답 후 다음 단계로 넘어가기까지의 기본 대기 시간.
+ * BGM 페이드아웃(3초)이 끝난 뒤 다음 영상이 시작되도록 페이드 길이와 맞춘다.
+ */
+const DEFAULT_SUCCESS_HOLD_MS = BGM_FADE_MS;
+const DEFAULT_REVEAL_MS = 6000;
 
 type Status = "idle" | "wrong" | "correct";
 
 // 퍼즐 공통 화면 (지시서 v2 · 6장)
 //
-// 표시 요소는 공통 프레임 / 큐시트 / 정답 입력창 / 확인 버튼 / 결과 문구뿐이다.
-// 나가기, 이전, 다음, 영상으로 돌아가기, 퍼즐 건너뛰기는 모두 제공하지 않는다.
+// 레이아웃은 두 가지다.
+//  - frame: 공통 퍼즐 프레임 + 큐시트 (퍼즐 1~5, 9)
+//  - scene: 노이즈 장면 배경 + 설명 박스 + 입력줄 (퍼즐 7·8)
+//
+// 어느 쪽이든 나가기, 이전, 다음, 영상으로 돌아가기, 퍼즐 건너뛰기는 제공하지 않는다.
 // 정답을 맞히기 전에는 어떤 방법으로도 다음 단계로 이동할 수 없다. (지시서 6.3)
 export function PuzzleScreen({ puzzle, debug, onSolved, onAttempt }: PuzzleScreenProps) {
   const [value, setValue] = useState("");
@@ -37,16 +45,21 @@ export function PuzzleScreen({ puzzle, debug, onSolved, onAttempt }: PuzzleScree
   const [modalOpen, setModalOpen] = useState(false);
   const [frameError, setFrameError] = useState(false);
   const [cueError, setCueError] = useState(false);
+  // 정답 후 성공 이미지를 전체 화면으로 보여주는 연출 (퍼즐 7·8)
+  const [revealing, setRevealing] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const lastSubmitRef = useRef(0);
   const solveTimer = useRef<number | undefined>(undefined);
+  const revealTimer = useRef<number | undefined>(undefined);
+  const cancelVoice = useRef<(() => void) | undefined>(undefined);
   // StrictMode의 이펙트 2회 실행에도 진입음이 겹치지 않게 한다.
   const openedForRef = useRef<string | null>(null);
 
   const locked = status === "correct";
   const audio = getPuzzleAudio(puzzle.id);
-  const showCueImage = !puzzle.cuePending && !cueError;
+  const isScene = puzzle.layout === "scene";
+  const showCueImage = !isScene && !puzzle.cuePending && !cueError;
 
   // 퍼즐이 바뀌면 상태를 초기화하고 진입음 + BGM을 시작한다. (지시서 11.3)
   useEffect(() => {
@@ -55,6 +68,7 @@ export function PuzzleScreen({ puzzle, debug, onSolved, onAttempt }: PuzzleScree
     setShake(false);
     setModalOpen(false);
     setCueError(false);
+    setRevealing(false);
 
     const set = getPuzzleAudio(puzzle.id);
     if (set && openedForRef.current !== puzzle.id) {
@@ -65,18 +79,39 @@ export function PuzzleScreen({ puzzle, debug, onSolved, onAttempt }: PuzzleScree
 
     return () => {
       if (solveTimer.current) window.clearTimeout(solveTimer.current);
+      if (revealTimer.current) window.clearTimeout(revealTimer.current);
+      cancelVoice.current?.();
     };
   }, [puzzle.id]);
 
   function succeed() {
     setStatus("correct");
 
-    // 퍼즐 BGM 400ms 페이드아웃 → 정답 효과음 → 대기 → 다음 단계 (지시서 11.3)
+    // 정답 즉시 BGM을 3초에 걸쳐 페이드아웃한다.
+    // 다음 오디오(영상 소리 / 성공 음성)는 페이드가 끝난 뒤에 시작하므로 서로 겹치지 않는다.
     fadeOutBgm(BGM_FADE_MS);
-    if (audio) playSfx(audio.correct, VOLUME.correct);
 
-    const hold = puzzle.successHoldMs ?? DEFAULT_SUCCESS_HOLD_MS;
-    solveTimer.current = window.setTimeout(onSolved, hold);
+    // 노이즈 퍼즐(7·8): 페이드가 끝나면 성공 이미지 + 음성.
+    // 음성이 끝날 때까지 이미지를 유지하고, 그다음 단계로 넘어간다.
+    if (puzzle.successImageSrc) {
+      revealTimer.current = window.setTimeout(() => {
+        setRevealing(true);
+        cancelVoice.current = playVoice(
+          audio?.correct ?? "",
+          VOLUME.correct,
+          puzzle.successRevealMs ?? DEFAULT_REVEAL_MS,
+          onSolved,
+        );
+      }, BGM_FADE_MS);
+      return;
+    }
+
+    // 일반 퍼즐: 정답 효과음 → BGM 페이드가 끝나면 다음 영상
+    if (audio) playSfx(audio.correct, VOLUME.correct);
+    solveTimer.current = window.setTimeout(
+      onSolved,
+      puzzle.successHoldMs ?? DEFAULT_SUCCESS_HOLD_MS,
+    );
   }
 
   function submit() {
@@ -110,9 +145,7 @@ export function PuzzleScreen({ puzzle, debug, onSolved, onAttempt }: PuzzleScree
     }
   }
 
-  const inputProps = {
-    className: "answer-input",
-    style: INPUT_RECT,
+  const commonInputProps = {
     placeholder: puzzle.placeholder ?? "정답 입력",
     value,
     disabled: locked,
@@ -126,6 +159,79 @@ export function PuzzleScreen({ puzzle, debug, onSolved, onAttempt }: PuzzleScree
     onKeyDown: handleKeyDown,
   };
 
+  const debugBar = debug && !locked && (
+    <div className="puzzle-debug-bar">
+      <span>{puzzle.id}</span>
+      <button type="button" onClick={succeed}>
+        퍼즐 강제 성공
+      </button>
+    </div>
+  );
+
+  // ── 정답 후 성공 이미지 연출 (퍼즐 7·8) ──────────────────────────────────
+  // 음성이 끝나면(음원이 없으면 successRevealMs 후) 자동으로 다음 단계로 넘어간다.
+  if (revealing && puzzle.successImageSrc) {
+    return (
+      <div className="screen puzzle-reveal">
+        <img
+          className="puzzle-reveal-image"
+          src={puzzle.successImageSrc}
+          alt={`${puzzle.title} 해독 완료`}
+          draggable={false}
+        />
+      </div>
+    );
+  }
+
+  // ── scene 레이아웃: 노이즈 퍼즐 7·8 ──────────────────────────────────────
+  if (isScene) {
+    return (
+      <div className="screen puzzle-screen">
+        <div className={`noise-stage${shake ? " puzzle-stage--shake" : ""}`}>
+          <img className="noise-bg" src={puzzle.backgroundSrc} alt="" draggable={false} />
+
+          {/* 설명 박스 — 목탄으로 쓴 양피지 쪽지 */}
+          {puzzle.briefText && (
+            <div className="noise-brief">
+              <p className="noise-brief-text">{puzzle.briefText}</p>
+            </div>
+          )}
+
+          {/* 하단 입력줄: 입력창 + 정답 버튼 */}
+          <div className="noise-input-row">
+            <textarea
+              {...commonInputProps}
+              ref={inputRef as React.Ref<HTMLTextAreaElement>}
+              className="noise-input"
+              rows={2}
+            />
+            <button
+              type="button"
+              className="noise-confirm"
+              aria-label="정답 확인"
+              disabled={locked}
+              onClick={submit}
+            >
+              정답
+            </button>
+          </div>
+
+          {status === "wrong" && (
+            <p className="noise-message">아직 소음뿐이다. 다시 귀를 기울여라.</p>
+          )}
+
+          {/* 정답 직후 BGM이 3초간 잦아드는 동안의 상태 표시 */}
+          {status === "correct" && (
+            <p className="noise-message noise-message--correct">소음이 잦아든다…</p>
+          )}
+
+          {debugBar}
+        </div>
+      </div>
+    );
+  }
+
+  // ── frame 레이아웃: 퍼즐 1~5, 9 ──────────────────────────────────────────
   return (
     <div className="screen puzzle-screen">
       <div
@@ -178,14 +284,17 @@ export function PuzzleScreen({ puzzle, debug, onSolved, onAttempt }: PuzzleScree
         {/* 정답 입력창 */}
         {puzzle.longInput ? (
           <textarea
-            {...inputProps}
+            {...commonInputProps}
             ref={inputRef as React.Ref<HTMLTextAreaElement>}
             className="answer-input answer-input--long"
+            style={INPUT_RECT}
           />
         ) : (
           <input
-            {...inputProps}
+            {...commonInputProps}
             ref={inputRef as React.Ref<HTMLInputElement>}
+            className="answer-input"
+            style={INPUT_RECT}
             type="text"
             inputMode={puzzle.answerType === "number" ? "numeric" : "text"}
           />
@@ -215,18 +324,10 @@ export function PuzzleScreen({ puzzle, debug, onSolved, onAttempt }: PuzzleScree
           )}
         </div>
 
-        {/* 디버그 전용: 퍼즐 강제 성공 (지시서 13장) */}
-        {debug && !locked && (
-          <div className="puzzle-debug-bar">
-            <span>{puzzle.id}</span>
-            <button type="button" onClick={succeed}>
-              퍼즐 강제 성공
-            </button>
-          </div>
-        )}
+        {debugBar}
       </div>
 
-      {showCueImage && (
+      {showCueImage && puzzle.cueImageSrc && (
         <CueSheetModal
           src={puzzle.cueImageSrc}
           alt={puzzle.title}

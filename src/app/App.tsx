@@ -22,13 +22,21 @@ const REVEAL_MS = 400;
 //
 // 참가자용 `다음` 버튼, 클릭/키보드 컷신 넘김, 퍼즐 `나가기`는 존재하지 않는다.
 export default function App() {
-  const flow = useSequenceProgress();
-  const { currentStep } = flow;
-
   const debug = useMemo(
     () => new URLSearchParams(window.location.search).get("debug") === "1",
     [],
   );
+
+  // 디버그 전용: ?debug=1&step=puzzle-07 처럼 특정 단계로 바로 진입한다. (지시서 13장)
+  // 참가자 모드(?debug 없음)에서는 무시되므로 영상을 건너뛸 수 없다.
+  const debugStepId = useMemo(() => {
+    if (!debug) return null;
+    const requested = new URLSearchParams(window.location.search).get("step");
+    return requested && stepMap[requested] ? requested : null;
+  }, [debug]);
+
+  const flow = useSequenceProgress(debugStepId);
+  const { currentStep } = flow;
 
   const [phase, setPhase] = useState<TransitionPhase>("idle");
   const lockRef = useRef(false);

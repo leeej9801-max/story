@@ -6,12 +6,16 @@ import { clearProgress, createInitialProgress, loadProgress, saveProgress } from
 // 진행 상태의 단일 소스. currentStepId 하나로 전체 흐름을 제어한다. (지시서 4장 / 12장)
 //
 // currentStepId === null 이면 시퀀스 밖의 시작 화면이다.
-export function useSequenceProgress() {
+//
+// @param initialStepId 디버그 모드에서 특정 단계로 바로 진입할 때만 사용한다. (지시서 13장)
+export function useSequenceProgress(initialStepId?: string | null) {
   // 저장 데이터를 읽어 진행 메타를 복원하되, 화면 자체는 항상 시작 화면부터 시작한다.
   const [progress, setProgress] = useState<SavedProgressV2>(
     () => loadProgress() ?? createInitialProgress(),
   );
-  const [currentStepId, setCurrentStepId] = useState<string | null>(null);
+  const [currentStepId, setCurrentStepId] = useState<string | null>(
+    initialStepId && stepMap[initialStepId] ? initialStepId : null,
+  );
 
   const currentStep: SequenceStep | null =
     currentStepId !== null ? (stepMap[currentStepId] ?? null) : null;
