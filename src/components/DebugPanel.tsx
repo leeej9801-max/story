@@ -1,45 +1,44 @@
-import { useState } from "react";
-import type { StoryNode } from "../types/story";
-import { storyManifest } from "../data/storyManifest";
+import { useEffect, useState } from "react";
+import type { SavedProgressV2, SequenceStep } from "../types/sequence";
+import { sequence } from "../data/sequenceManifest";
+import { getActiveAudioSources } from "../utils/audio";
 
 interface DebugPanelProps {
-  currentNode: StoryNode;
+  currentStep: SequenceStep | null;
+  progress: SavedProgressV2;
+  onJump: (stepId: string) => void;
   onPrev: () => void;
   onNext: () => void;
-  onJump: (nodeId: string) => void;
-  onForceSolve: () => void;
   onReset: () => void;
-  jumpPanelOpen: boolean;
-  onToggleJumpPanel: (open: boolean) => void;
 }
 
-// 개발용 디버그 패널 (명세 16장). ?debug=1 에서만 렌더된다.
+// 개발용 디버그 패널 (지시서 v2 · 13장). ?debug=1 에서만 렌더된다.
+// 참가자 모드에는 이 기능을 절대 표시하지 않는다.
+//
+// 영상 시간 이동 / 영상 종료 강제 실행은 VideoStage,
+// 퍼즐 강제 성공은 PuzzleScreen, 기믹 타이머 0초는 GimmickTimer가 각각 제공한다.
 export function DebugPanel({
-  currentNode,
+  currentStep,
+  progress,
+  onJump,
   onPrev,
   onNext,
-  onJump,
-  onForceSolve,
   onReset,
-  jumpPanelOpen,
-  onToggleJumpPanel,
 }: DebugPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [audioInfo, setAudioInfo] = useState(getActiveAudioSources());
 
-  const imageSrc =
-    "imageSrc" in currentNode ? (currentNode.imageSrc as string) : undefined;
-  const videoSrc =
-    "videoSrc" in currentNode ? (currentNode.videoSrc as string) : undefined;
+  // 현재 재생 중인 오디오 파일명 표시 (지시서 13장)
+  useEffect(() => {
+    const t = window.setInterval(() => setAudioInfo(getActiveAudioSources()), 500);
+    return () => window.clearInterval(t);
+  }, []);
 
   return (
     <div className={`debug-panel${collapsed ? " debug-panel--collapsed" : ""}`}>
       <div className="debug-header">
         <strong>DEBUG</strong>
-        <button
-          type="button"
-          className="debug-mini"
-          onClick={() => setCollapsed((c) => !c)}
-        >
+        <button type="button" className="debug-mini" onClick={() => setCollapsed((c) => !c)}>
           {collapsed ? "▲" : "▼"}
         </button>
       </div>
@@ -48,54 +47,46 @@ export function DebugPanel({
         <div className="debug-body">
           <div className="debug-info">
             <div>
-              node: <b>{currentNode.id}</b>
+              step: <b>{currentStep?.id ?? "start (시작 화면)"}</b>
             </div>
-            <div>
-              type: {currentNode.type} · ch {currentNode.chapter} · order{" "}
-              {currentNode.order}
-            </div>
-            <div>next: {currentNode.nextId ?? "—"}</div>
-            {imageSrc && <div className="debug-src">img: {imageSrc}</div>}
-            {videoSrc && <div className="debug-src">vid: {videoSrc}</div>}
-            {"puzzleId" in currentNode && (
-              <div>puzzle: {(currentNode as { puzzleId: string }).puzzleId}</div>
+            <div>type: {currentStep?.type ?? "—"}</div>
+            <div>next: {currentStep?.nextStepId ?? "—"}</div>
+            {currentStep?.type === "video" && (
+              <div className="debug-src">vid: {currentStep.src}</div>
             )}
+            {currentStep?.type === "puzzle" && <div>puzzle: {currentStep.puzzleId}</div>}
+            {currentStep?.type === "gimmick" && <div>gimmick: {currentStep.gimmickId}</div>}
+            <div className="debug-src">
+              bgm: {audioInfo.bgm ?? "—"} · sfx: {audioInfo.sfxCount}
+            </div>
+            <div className="debug-src">
+              solved: {progress.completedPuzzleIds.length} · t=
+              {progress.videoCurrentTime.toFixed(1)}s
+            </div>
           </div>
 
           <div className="debug-actions">
             <button type="button" onClick={onPrev}>
-              ◀ 이전
+              ◀ 이전 단계
             </button>
             <button type="button" onClick={onNext}>
-              다음 ▶
+              다음 단계 ▶
             </button>
-            <button type="button" onClick={() => onToggleJumpPanel(!jumpPanelOpen)}>
-              점프 (J)
-            </button>
-            {currentNode.type === "puzzle" && (
-              <button type="button" onClick={onForceSolve}>
-                퍼즐 성공 처리
-              </button>
-            )}
             <button type="button" className="debug-danger" onClick={onReset}>
               진행 초기화
             </button>
           </div>
 
-          {jumpPanelOpen && (
-            <div className="debug-jump">
-              <select
-                value={currentNode.id}
-                onChange={(e) => onJump(e.target.value)}
-              >
-                {storyManifest.map((node) => (
-                  <option key={node.id} value={node.id}>
-                    {node.order}. {node.id} ({node.type})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="debug-jump">
+            <select value={currentStep?.id ?? ""} onChange={(e) => onJump(e.target.value)}>
+              {currentStep === null && <option value="">— 시작 화면 —</option>}
+              {sequence.map((step, index) => (
+                <option key={step.id} value={step.id}>
+                  {index + 1}. {step.id} ({step.type})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
     </div>

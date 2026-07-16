@@ -1,15 +1,17 @@
-// Production 빌드 전 콘텐츠 검증 (명세 20장)
+// Production 빌드 전 콘텐츠 검증 (지시서 v2)
 //
-// storyManifest.ts / puzzleManifest.ts 를 텍스트로 정적 분석해 아래를 검사한다.
-//  - 노드 ID 중복 없음
-//  - 모든 nextId가 실제 노드에 존재
-//  - 컷신/영상/시작 노드의 asset 파일이 public/ 아래에 존재
-//  - enabled 퍼즐의 큐시트 존재 + 답이 __ANSWER_REQUIRED__ 아님
-//  - 퍼즐 노드의 puzzleId가 puzzleManifest에 존재
-//  - 순환 참조 없음 & start → 종료 노드 도달 가능
+// sequenceManifest.ts / puzzleManifest.ts 를 텍스트로 정적 분석해 아래를 검사한다.
+//  - 단계 ID 중복 없음
+//  - 모든 nextStepId가 실제 단계에 존재
+//  - 영상 파일이 public/ 아래에 존재 (pending 단계는 경고)
+//  - 퍼즐 단계의 puzzleId가 puzzleManifest에 존재
+//  - 큐시트 존재 (cuePending 퍼즐은 경고)
+//  - 퍼즐 정답이 비어있지 않음
+//  - 순환 참조 없음 & 첫 단계 → complete 도달 가능
+//  - 6번은 퍼즐이 아니라 기믹 (puzzle-06이 있으면 오류)
 //
-// 텍스트 파싱은 이 저장소가 통제하는 manifest 서식(cut()/puzzle() 헬퍼 + 평면 객체)에
-// 맞춰져 있다. 서식을 크게 바꾸면 이 스크립트도 함께 갱신한다.
+// 텍스트 파싱은 이 저장소가 통제하는 manifest 서식(평면 객체 리터럴)에 맞춰져 있다.
+// 서식을 크게 바꾸면 이 스크립트도 함께 갱신한다.
 
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -20,143 +22,157 @@ const projectRoot = resolve(__dirname, "..");
 const publicDir = join(projectRoot, "public");
 const dataDir = join(projectRoot, "src", "data");
 
-const ANSWER_REQUIRED = "__ANSWER_REQUIRED__";
-const START_ID = "start";
-
 const errors = [];
 const warnings = [];
 const err = (m) => errors.push(m);
 const warn = (m) => warnings.push(m);
 
 function assetExists(publicPath) {
-  // "/assets/scenes/c0-01.png" → public/assets/scenes/c0-01.png
-  const rel = publicPath.replace(/^\//, "");
-  return existsSync(join(publicDir, rel));
+  // "/assets/video/part1.mp4" → public/assets/video/part1.mp4
+  return existsSync(join(publicDir, publicPath.replace(/^\//, "")));
 }
 
-// ── storyManifest 파싱 ──────────────────────────────────────────────────────
-const storySrc = readFileSync(join(dataDir, "storyManifest.ts"), "utf8");
+// ── sequenceManifest 파싱 ───────────────────────────────────────────────────
+const seqSrc = readFileSync(join(dataDir, "sequenceManifest.ts"), "utf8");
 
-/** @type {{id:string,type:string,nextId:string|null,asset?:string,puzzleId?:string}[]} */
-const nodes = [];
+/** @type {{id:string,type:string,nextStepId:string|null,src?:string,puzzleId?:string,gimmickId?:string,pending:boolean}[]} */
+const steps = [];
 
-// cut("id", ch, order, "file.png", nextId, transition?)
-for (const m of storySrc.matchAll(
-  /\bcut\(\s*"([^"]+)"\s*,\s*\d+\s*,\s*\d+\s*,\s*"([^"]+)"\s*,\s*(null|"[^"]+")/g,
-)) {
-  nodes.push({
-    id: m[1],
-    type: "cutscene",
-    nextId: m[3] === "null" ? null : m[3].slice(1, -1),
-    asset: `/assets/scenes/${m[2]}`,
-  });
-}
-
-// puzzle("id", ch, order, "pid", nextId)
-for (const m of storySrc.matchAll(
-  /\bpuzzle\(\s*"([^"]+)"\s*,\s*\d+\s*,\s*\d+\s*,\s*"([^"]+)"\s*,\s*(null|"[^"]+")/g,
-)) {
-  nodes.push({
-    id: m[1],
-    type: "puzzle",
-    nextId: m[3] === "null" ? null : m[3].slice(1, -1),
-    puzzleId: m[2],
-  });
-}
-
-// 평면 객체 노드 (start / video / placeholder). id가 문자열 리터럴인 것만.
-for (const block of storySrc.matchAll(/\{[^{}]*?\btype:\s*"[^"]+"[^{}]*?\}/g)) {
+for (const block of seqSrc.matchAll(/\{[^{}]*?\bid:\s*"[^"]+"[^{}]*?\}/g)) {
   const text = block[0];
   const idM = text.match(/\bid:\s*"([^"]+)"/);
-  if (!idM) continue; // 헬퍼 return 객체(shorthand id)는 건너뜀
   const typeM = text.match(/\btype:\s*"([^"]+)"/);
-  const nextM = text.match(/\bnextId:\s*(null|"[^"]+")/);
-  const imgM = text.match(/\bimageSrc:\s*"([^"]+)"/);
-  const vidM = text.match(/\bvideoSrc:\s*"([^"]+)"/);
-  nodes.push({
+  if (!idM || !typeM) continue;
+
+  const nextM = text.match(/\bnextStepId:\s*(null|"[^"]+")/);
+  const srcM = text.match(/\bsrc:\s*"([^"]+)"/);
+  const puzM = text.match(/\bpuzzleId:\s*"([^"]+)"/);
+  const gimM = text.match(/\bgimmickId:\s*"([^"]+)"/);
+
+  steps.push({
     id: idM[1],
-    type: typeM ? typeM[1] : "unknown",
-    nextId: nextM ? (nextM[1] === "null" ? null : nextM[1].slice(1, -1)) : null,
-    asset: imgM ? imgM[1] : vidM ? vidM[1] : undefined,
+    type: typeM[1],
+    nextStepId: nextM ? (nextM[1] === "null" ? null : nextM[1].slice(1, -1)) : null,
+    src: srcM ? srcM[1] : undefined,
+    puzzleId: puzM ? puzM[1] : undefined,
+    gimmickId: gimM ? gimM[1] : undefined,
+    pending: /\bpending:\s*true/.test(text),
   });
 }
 
-if (nodes.length === 0) {
-  err("storyManifest에서 노드를 하나도 파싱하지 못했습니다. (파서/서식 확인 필요)");
+const firstStepM = seqSrc.match(/FIRST_STEP_ID\s*=\s*"([^"]+)"/);
+const FIRST_STEP_ID = firstStepM ? firstStepM[1] : "video-01";
+
+if (steps.length === 0) {
+  err("sequenceManifest에서 단계를 하나도 파싱하지 못했습니다. (파서/서식 확인 필요)");
 }
 
 // ── puzzleManifest 파싱 ─────────────────────────────────────────────────────
 const puzzleSrc = readFileSync(join(dataDir, "puzzleManifest.ts"), "utf8");
-/** @type {Record<string,{id:string,cue:string,enabled:boolean,answers:string}>} */
+/** @type {Record<string,{id:string,cue:string,answers:string,cuePending:boolean}>} */
 const puzzles = {};
-for (const block of puzzleSrc.matchAll(/\{[^{}]*?\bid:\s*"[^"]+"[^{}]*?\}/g)) {
+
+// 퍼즐 정의는 acceptedAnswers 배열을 포함하므로 중첩 [] 를 허용해 블록을 잡는다.
+for (const block of puzzleSrc.matchAll(/\{\s*\bid:\s*"puzzle-\d+"[\s\S]*?\n  \},/g)) {
   const text = block[0];
   const idM = text.match(/\bid:\s*"([^"]+)"/);
   const cueM = text.match(/\bcueImageSrc:\s*"([^"]+)"/);
-  const enM = text.match(/\benabled:\s*(true|false)/);
-  const ansM = text.match(/\bacceptedAnswers:\s*\[([^\]]*)\]/);
+  const ansM = text.match(/\bacceptedAnswers:\s*\[([\s\S]*?)\]/);
   if (!idM || !cueM) continue;
+
   puzzles[idM[1]] = {
     id: idM[1],
     cue: cueM[1],
-    enabled: enM ? enM[1] === "true" : false,
     answers: ansM ? ansM[1] : "",
+    cuePending: /\bcuePending:\s*true/.test(text),
   };
+}
+
+if (Object.keys(puzzles).length === 0) {
+  err("puzzleManifest에서 퍼즐을 하나도 파싱하지 못했습니다. (파서/서식 확인 필요)");
 }
 
 // ── 검사 ────────────────────────────────────────────────────────────────────
 const idSet = new Set();
-for (const n of nodes) {
-  if (idSet.has(n.id)) err(`중복 노드 ID: ${n.id}`);
-  idSet.add(n.id);
+for (const s of steps) {
+  if (idSet.has(s.id)) err(`중복 단계 ID: ${s.id}`);
+  idSet.add(s.id);
 }
 
-// nextId 유효성 & 종료 노드
-for (const n of nodes) {
-  if (n.nextId !== null && !idSet.has(n.nextId)) {
-    err(`노드 ${n.id}의 nextId "${n.nextId}"가 존재하지 않습니다.`);
+// nextStepId 유효성
+for (const s of steps) {
+  if (s.nextStepId !== null && !idSet.has(s.nextStepId)) {
+    err(`단계 ${s.id}의 nextStepId "${s.nextStepId}"가 존재하지 않습니다.`);
   }
-  if (n.nextId === null && !["placeholder", "ending"].includes(n.type)) {
-    warn(`노드 ${n.id}(${n.type})의 nextId가 null입니다. (막다른 장면일 수 있음)`);
-  }
-}
-
-// asset 존재
-for (const n of nodes) {
-  if (n.asset && !assetExists(n.asset)) {
-    err(`노드 ${n.id}의 asset 파일이 없습니다: ${n.asset}`);
+  if (s.nextStepId === null && s.type !== "complete") {
+    err(`단계 ${s.id}(${s.type})의 nextStepId가 null입니다. complete 단계만 null일 수 있습니다.`);
   }
 }
 
-// 퍼즐 노드 → puzzleManifest 참조 & enabled 퍼즐 검증
-for (const n of nodes) {
-  if (n.type !== "puzzle") continue;
-  const p = puzzles[n.puzzleId];
-  if (!p) {
-    err(`퍼즐 노드 ${n.id}의 puzzleId "${n.puzzleId}"가 puzzleManifest에 없습니다.`);
-    continue;
-  }
-  if (!p.enabled) {
-    warn(`퍼즐 ${p.id}는 enabled=false (준비 중)입니다. 참가자 모드에서 임시 통과됩니다.`);
+// 영상 파일 존재
+for (const s of steps) {
+  if (s.type !== "video" || !s.src) continue;
+  if (assetExists(s.src)) {
+    if (s.pending) {
+      warn(`단계 ${s.id}는 pending인데 영상 파일이 이미 있습니다: ${s.src} → pending을 지우세요.`);
+    }
+  } else if (s.pending) {
+    warn(`단계 ${s.id}의 영상이 아직 없습니다(제작 중): ${s.src}`);
+  } else {
+    err(`단계 ${s.id}의 영상 파일이 없습니다: ${s.src}`);
   }
 }
 
-// enabled 퍼즐: 큐시트 존재 + 정답 확정
+// 퍼즐 단계 → puzzleManifest 참조
+for (const s of steps) {
+  if (s.type !== "puzzle") continue;
+  if (!puzzles[s.puzzleId]) {
+    err(`퍼즐 단계 ${s.id}의 puzzleId "${s.puzzleId}"가 puzzleManifest에 없습니다.`);
+  }
+}
+
+// 6번은 정답 입력 퍼즐이 아니라 타이머 기믹이다. (지시서 1장)
+if (puzzles["puzzle-06"]) {
+  err("puzzle-06이 정의되어 있습니다. 6번은 정답 입력 퍼즐이 아니라 10초 타이머 기믹입니다.");
+}
+if (!steps.some((s) => s.type === "gimmick" && s.gimmickId === "gimmick-06")) {
+  err("기믹 6(gimmick-06) 단계가 시퀀스에 없습니다.");
+}
+
+// 퍼즐: 큐시트 존재 + 정답 확정
 for (const p of Object.values(puzzles)) {
-  if (!p.enabled) continue;
-  if (!assetExists(p.cue)) err(`퍼즐 ${p.id}의 큐시트가 없습니다: ${p.cue}`);
-  if (p.answers.includes(ANSWER_REQUIRED) || p.answers.trim() === "") {
-    err(`퍼즐 ${p.id}는 enabled이지만 정답이 확정되지 않았습니다 (${ANSWER_REQUIRED}).`);
+  if (assetExists(p.cue)) {
+    if (p.cuePending) {
+      warn(`퍼즐 ${p.id}는 cuePending인데 큐시트가 이미 있습니다: ${p.cue} → cuePending을 지우세요.`);
+    }
+  } else if (p.cuePending) {
+    warn(`퍼즐 ${p.id}의 큐시트가 아직 없습니다(제작 중): ${p.cue}`);
+  } else {
+    err(`퍼즐 ${p.id}의 큐시트가 없습니다: ${p.cue}`);
+  }
+
+  if (p.answers.trim() === "") {
+    err(`퍼즐 ${p.id}의 정답(acceptedAnswers)이 비어 있습니다.`);
   }
 }
 
-// 순환 참조 & start → 종료 도달 가능
-const nodeById = new Map(nodes.map((n) => [n.id, n]));
-if (!nodeById.has(START_ID)) {
-  err(`시작 노드 "${START_ID}"가 없습니다.`);
+// 퍼즐 2의 앞자리 0 유지 검증 (지시서 16장 완료 조건)
+if (puzzles["puzzle-02"] && !/"0912"/.test(puzzles["puzzle-02"].answers)) {
+  err('퍼즐 2의 정답이 문자열 "0912"가 아닙니다. 숫자 타입이면 앞자리 0이 사라집니다.');
+}
+
+// 공통 퍼즐 프레임
+if (!assetExists("/assets/ui/puzzle-frame.png")) {
+  err("공통 퍼즐 프레임이 없습니다: /assets/ui/puzzle-frame.png");
+}
+
+// 순환 참조 & 첫 단계 → complete 도달 가능
+const stepById = new Map(steps.map((s) => [s.id, s]));
+if (!stepById.has(FIRST_STEP_ID)) {
+  err(`첫 단계 "${FIRST_STEP_ID}"가 없습니다.`);
 } else {
   const visited = new Set();
-  let cur = START_ID;
+  let cur = FIRST_STEP_ID;
   let reachedEnd = false;
   while (cur) {
     if (visited.has(cur)) {
@@ -164,21 +180,32 @@ if (!nodeById.has(START_ID)) {
       break;
     }
     visited.add(cur);
-    const node = nodeById.get(cur);
-    if (!node) break; // nextId 오류는 위에서 이미 보고됨
-    if (node.nextId === null) {
+    const step = stepById.get(cur);
+    if (!step) break; // nextStepId 오류는 위에서 이미 보고됨
+    if (step.type === "complete") {
       reachedEnd = true;
       break;
     }
-    cur = node.nextId;
+    cur = step.nextStepId;
   }
   if (!reachedEnd && errors.length === 0) {
-    err("start 노드에서 종료 노드까지 도달하지 못했습니다.");
+    err("첫 단계에서 complete 단계까지 도달하지 못했습니다.");
+  }
+
+  // 도달 불가능한 단계 경고
+  for (const s of steps) {
+    if (!visited.has(s.id)) warn(`단계 ${s.id}는 진행 경로에서 도달할 수 없습니다.`);
   }
 }
 
 // ── 결과 ────────────────────────────────────────────────────────────────────
-console.log(`[validate-content] 노드 ${nodes.length}개 · 퍼즐 ${Object.keys(puzzles).length}개 분석`);
+const videoCount = steps.filter((s) => s.type === "video").length;
+const puzzleStepCount = steps.filter((s) => s.type === "puzzle").length;
+console.log(
+  `[validate-content] 단계 ${steps.length}개 (영상 ${videoCount} · 퍼즐 ${puzzleStepCount} · 기믹 ${
+    steps.filter((s) => s.type === "gimmick").length
+  }) · 퍼즐 정의 ${Object.keys(puzzles).length}개 분석`,
+);
 for (const w of warnings) console.warn(`  ⚠ ${w}`);
 
 if (errors.length > 0) {

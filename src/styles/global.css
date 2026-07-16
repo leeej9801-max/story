@@ -255,3 +255,49 @@ img {
 .debug-panel--collapsed {
   min-width: 0;
 }
+
+/* ── 화면별 디버그 바 (지시서 13장) ──────────────────────────────────
+   영상 시간 이동 / 퍼즐 강제 성공 / 기믹 타이머 0초.
+   ?debug=1 에서만 렌더되며 참가자 모드에는 절대 표시되지 않는다. */
+.video-debug-bar,
+.puzzle-debug-bar,
+.gimmick-debug-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  font-size: 12px;
+  color: var(--text);
+  background: rgba(8, 8, 10, 0.92);
+  border: 1px solid rgba(120, 200, 160, 0.5);
+  border-radius: 6px;
+}
+
+.video-debug-bar input[type="range"] {
+  width: min(40vw, 380px);
+}
+
+.video-debug-bar button,
+.puzzle-debug-bar button,
+.gimmick-debug-bar button {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  color: var(--text);
+  background: rgba(30, 30, 34, 0.9);
+  border: 1px solid rgba(120, 200, 160, 0.4);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.video-debug-bar button:hover,
+.puzzle-debug-bar button:hover,
+.gimmick-debug-bar button:hover {
+  border-color: rgba(120, 200, 160, 0.9);
+}

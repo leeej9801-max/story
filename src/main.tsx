@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles/global.css";
-import "./styles/story.css";
+import "./styles/stage.css";
 import "./styles/puzzle.css";
 import App from "./app/App";
 

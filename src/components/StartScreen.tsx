@@ -1,26 +1,23 @@
 import { useState } from "react";
-import type { StartNode } from "../types/story";
 
 interface StartScreenProps {
-  node: StartNode;
   hasResume: boolean;
   onStart: () => void;
   onContinue: () => void;
   onRestart: () => void;
 }
 
-// 시작 화면 (명세 6장). 배경 이미지는 contain으로 표시하고 버튼만 HTML로 오버레이한다.
-export function StartScreen({
-  node,
-  hasResume,
-  onStart,
-  onContinue,
-  onRestart,
-}: StartScreenProps) {
+const START_BACKGROUND_SRC = "/assets/ui/start-background.png";
+
+// 시작 화면 (지시서 v2 · 5.2)
+//
+// `시작하기`를 누르면 영상 1이 재생된다. 이 클릭이 사용자 입력이므로
+// 이후 영상 자동 재생이 브라우저 정책에 막히지 않는다.
+export function StartScreen({ hasResume, onStart, onContinue, onRestart }: StartScreenProps) {
   const [imageError, setImageError] = useState(false);
 
   function requestFullscreen() {
-    // 전체 화면 요청은 사용자 클릭 이후에만 (명세 17장)
+    // 전체 화면 요청은 사용자 클릭 이후에만 가능하다.
     const el = document.documentElement;
     if (!document.fullscreenElement && el.requestFullscreen) {
       el.requestFullscreen().catch(() => {
@@ -34,7 +31,7 @@ export function StartScreen({
       {!imageError ? (
         <img
           className="start-background"
-          src={node.imageSrc}
+          src={START_BACKGROUND_SRC}
           alt="THE ROAD 시작 화면"
           draggable={false}
           onError={() => setImageError(true)}

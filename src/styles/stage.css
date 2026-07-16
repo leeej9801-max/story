@@ -1,0 +1,196 @@
+/* THE ROAD · 시작 / 영상 / 기믹 / 엔딩 (지시서 v2 · 5·9장) */
+
+/* ── 시작 화면 ───────────────────────────────────────────────────────── */
+.start-screen {
+  background: #000;
+}
+
+.start-background {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* 원본을 어둡게/크롭하지 않음 */
+  background: #000;
+}
+
+.start-background--fallback {
+  background: radial-gradient(circle at 50% 60%, #1a140d, #000 70%);
+}
+
+.start-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end; /* 버튼을 하단에 배치해 주황 불빛을 가리지 않음 */
+  gap: 18px;
+  padding-bottom: clamp(28px, 8vh, 84px);
+  pointer-events: none;
+}
+
+.start-title {
+  margin: 0;
+  font-size: clamp(28px, 6vw, 68px);
+  letter-spacing: 0.32em;
+  font-weight: 600;
+  color: var(--text);
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.8);
+  opacity: 0.92;
+}
+
+.start-buttons {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+/* ── 영상 재생 화면 (지시서 5.2) ─────────────────────────────────────── */
+.video-stage {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background: #000;
+  display: grid;
+  place-items: center;
+}
+
+.video-stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  /* 참가자가 영상을 클릭/우클릭해 컨트롤을 꺼내거나 일시정지할 수 없게 한다.
+     기본 컨트롤과 seek bar는 controls 속성을 주지 않아 애초에 없다. (지시서 5.1) */
+  pointer-events: none;
+}
+
+/* 자동 재생이 브라우저 정책에 막힌 경우에만 노출되는 오류 대응 오버레이 (지시서 5.3) */
+.video-manual-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: rgba(0, 0, 0, 0.72);
+  cursor: pointer;
+  font-family: inherit;
+  animation: fade-in 300ms ease;
+}
+
+.video-manual-play-text {
+  padding: 14px 26px;
+  font-size: clamp(16px, 2vw, 24px);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg-strong);
+}
+
+/* 영상 파일 준비 중 (예: 영상 7 제작 중) */
+.video-pending {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.video-pending-note {
+  margin: 0;
+  font-size: clamp(14px, 1.5vw, 18px);
+  color: var(--text-dim);
+}
+
+/* ── 기믹 6 · 10초 타이머 (지시서 9.2) ───────────────────────────────── */
+.gimmick-screen {
+  flex-direction: column;
+  justify-content: flex-start;
+  background: #05040a;
+  /* 참가자가 클릭해서 타이머를 멈출 수 없다. (지시서 9.3) */
+  cursor: default;
+  user-select: none;
+}
+
+.gimmick-timer {
+  margin-top: clamp(24px, 8vh, 90px);
+  font-size: clamp(80px, 18vw, 220px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--text);
+  text-shadow: 0 0 40px rgba(224, 178, 96, 0.35);
+  animation: gimmick-pulse 1000ms ease-in-out infinite;
+}
+
+/* 3초부터 색과 진동 강도가 증가한다. (지시서 9.3) */
+.gimmick-timer--urgent {
+  color: #e8593c;
+  text-shadow: 0 0 60px rgba(232, 89, 60, 0.6);
+  animation: gimmick-pulse-urgent 500ms ease-in-out infinite;
+}
+
+.gimmick-prompt {
+  margin: auto 0;
+  padding: 0 24px;
+  font-size: clamp(20px, 3vw, 40px);
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--text);
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.9);
+}
+
+@keyframes gimmick-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes gimmick-pulse-urgent {
+  0%,
+  100% {
+    transform: scale(1) translateX(0);
+  }
+  25% {
+    transform: scale(1.09) translateX(-4px);
+  }
+  75% {
+    transform: scale(1.09) translateX(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gimmick-timer,
+  .gimmick-timer--urgent {
+    animation: none;
+  }
+}
+
+/* ── 엔딩 정지 화면 (지시서 3장 · 영상 7) ────────────────────────────── */
+.complete-screen {
+  background: #000;
+}
+
+.complete-restart {
+  position: absolute;
+  bottom: clamp(20px, 5vh, 48px);
+  left: 50%;
+  transform: translateX(-50%);
+  animation: fade-in 800ms ease;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
