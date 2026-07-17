@@ -131,7 +131,7 @@ export const puzzleAudio: Record<string, PuzzleAudioSet> = {
   // 빛 퍼즐: 마지막 고백. 정답 후 영상 7과 자연스럽게 이어진다.
   "puzzle-09": {
     open: `${COMMON}/light-open.wav`,
-    bgm: `${PUZZLES}/puzzle-09-light-loop.mp3`,
+    bgm: `${PUZZLES}/puzzle-09-bgm.mp3`,
     bgmVolume: VOLUME.bgm,
     correct: `${PUZZLES}/light-cleared.wav`,
     wrong: `${COMMON}/wrong-soft.wav`,

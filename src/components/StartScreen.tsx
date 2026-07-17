@@ -32,7 +32,7 @@ export function StartScreen({ hasResume, onStart, onContinue, onRestart }: Start
         <img
           className="start-background"
           src={START_BACKGROUND_SRC}
-          alt="THE ROAD 시작 화면"
+          alt="Who Are You? 시작 화면"
           draggable={false}
           onError={() => setImageError(true)}
         />
@@ -41,7 +41,7 @@ export function StartScreen({ hasResume, onStart, onContinue, onRestart }: Start
       )}
 
       <div className="start-overlay">
-        <h1 className="start-title">THE ROAD</h1>
+        <h1 className="start-title">Who Are You?</h1>
 
         <div className="start-buttons">
           {hasResume ? (

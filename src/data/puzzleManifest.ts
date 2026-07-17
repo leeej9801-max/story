@@ -39,13 +39,36 @@ export interface PuzzleDefinition {
   cuePending?: boolean;
   /** 큐시트가 준비되기 전까지 큐시트 자리에 표시할 임시 문구. */
   cueFallbackText?: string;
+  /**
+   * 큐시트 오른쪽 위에 얹는 짧은 운영 안내. 잉크 도장처럼 표시된다.
+   * 예: "정답은 카톡에!"
+   */
+  cueNote?: string;
+  /**
+   * 큐시트 삽화 아래(왼쪽 여백)에 얹는 몰입용 메모. 손으로 적어둔 글씨처럼 표시된다.
+   * 도장(cueNote)이 운영 안내라면 이쪽은 주인공의 혼잣말·현실 행동 지시에 가깝다.
+   * 예: "이 방 어딘가에 단서가 흩어져 있다 찾아보자"
+   */
+  cueAside?: string;
+  /**
+   * 큐시트 오른쪽 위 빈 여백에 얹는 퍼즐 규칙. 도장(cueNote) 아래에 놓인다.
+   * 큐시트 이미지에 빠진 규칙을 덧붙일 때 쓴다.
+   * 줄바꿈(\n)을 그대로 살린다.
+   */
+  cueRule?: string;
 
-  // ── scene 레이아웃 (퍼즐 7·8) ─────────────────────────────────────────────
+  // ── scene 레이아웃 (퍼즐 7·8·9) ───────────────────────────────────────────
   layout?: PuzzleLayout;
   /** 화면 전체에 깔 배경 장면. layout이 "scene"일 때 사용한다. */
   backgroundSrc?: string;
-  /** 배경 위 설명 박스에 들어갈 글. 목탄·양피지 질감으로 표시된다. */
+  /** 배경 위 설명 박스에 들어갈 글. 목탄·양피지 질감으로 표시된다. (없으면 표시 안 함) */
   briefText?: string;
+  /**
+   * 입력줄(입력창 + 정답 버튼) 위치. 배경 이미지 기준 % 좌표.
+   * 배경에 입력칸이 이미 그려져 있으면(퍼즐 9) 그 위에 맞춘다.
+   * 지정하지 않으면 노이즈 퍼즐용 하단 기본값을 쓴다.
+   */
+  inputRect?: { left: string; top: string; width: string; height: string };
 
   // ── 정답 후 연출 (퍼즐 7·8) ───────────────────────────────────────────────
   /**
@@ -71,6 +94,7 @@ export const puzzles: Record<string, PuzzleDefinition> = {
     acceptedAnswers: ["식량 창고 구석"],
     placeholder: "장소 이름 입력",
     successMessage: "아이의 위치를 확인했습니다.",
+    cueNote: "정답은 카톡에!",
   },
 
   "puzzle-02": {
@@ -83,6 +107,8 @@ export const puzzles: Record<string, PuzzleDefinition> = {
     acceptedAnswers: ["0912"],
     placeholder: "4자리 비밀번호 입력",
     successMessage: "약 상자가 열렸습니다.",
+    // 삽화 속 방(약 상자가 있는 방)을 가리키는 위치에 놓인다.
+    cueAside: "이 방 어딘가에 단서가 흩어져 있다 찾아보자",
   },
 
   "puzzle-03": {
@@ -94,6 +120,11 @@ export const puzzles: Record<string, PuzzleDefinition> = {
     acceptedAnswers: ["마법의 지도"],
     placeholder: "확인 문구 입력",
     successMessage: "창고의 지도가 완성되었습니다.",
+    cueNote: "정답은 카톡에!",
+    // 큐시트 이미지에 빠진 규칙. 화살표는 → 로 표시한다.
+    // 줄바꿈은 그대로 표시되므로, 도장 아래 ~ "상황" 구분선 위 여백에 들어가도록
+    // 3줄로 끊어 둔다. 문구를 고칠 때는 줄 길이도 함께 확인할 것.
+    cueRule: "규칙!\n반드시 빨간→파란 혹은 파란→빨간\n문을 교차해서 지도를 완성할 것!",
   },
 
   "puzzle-04": {
@@ -102,7 +133,9 @@ export const puzzles: Record<string, PuzzleDefinition> = {
     cueImageSrc: "/assets/puzzles/puzzle-04-cue.png",
     answerType: "number",
     matchMode: "exact",
-    acceptedAnswers: ["35173"],
+    // 종이컵의 E.L.I.S.E를 뒤집으면 숫자가 된다. E=3 L=7 I=1 S=5 E=3
+    // (지시서 v2 7장에는 35173으로 적혀 있으나 자릿수가 바뀐 오타다. 큐시트 기준 37153이 정답.)
+    acceptedAnswers: ["37153"],
     placeholder: "5자리 숫자 입력",
     successMessage: "첫 번째 탑의 관문이 열렸습니다.",
   },
@@ -164,20 +197,25 @@ export const puzzles: Record<string, PuzzleDefinition> = {
     successRevealMs: 9000,
   },
 
+  // 퍼즐 9도 공통 프레임을 쓰지 않는다.
+  // 큐시트 이미지 자체가 전체 화면 장면이고 안내 문구와 입력칸까지 그려져 있어서,
+  // 그려진 입력칸 위에 진짜 입력창을 겹치고 옆에 정답 버튼만 얹는다.
   "puzzle-09": {
     id: "puzzle-09",
     title: "걸어온 길의 모양",
-    cueImageSrc: "/assets/puzzles/puzzle-09-cue.png",
+    layout: "scene",
+    backgroundSrc: "/assets/puzzles/puzzle9_cue.png",
+    // briefText 없음 — 설명이 배경 이미지에 이미 인쇄되어 있다.
     answerType: "text",
     matchMode: "exact",
     // `CROSS`는 현재 정답으로 등록하지 않는다. (지시서 7장 · 퍼즐 9)
     acceptedAnswers: ["십자가"],
     placeholder: "정답 입력",
     successMessage: "빛을 가리던 장막이 걷힙니다.",
-    cuePending: true,
-    // 지시서 10.2의 퍼즐 9 권장 표시 문구
-    cueFallbackText:
-      "여행자가 빛 너머로 건너갈 수 있게 도와주세요!\n\n지금까지 걸어왔던 길을 생각하며\n다음 고백을 완성하여 정답을 입력해 주세요.\n\n[나의 모든 여정은 ______ 위에 놓여 있었다]",
+    // 배경에 그려진 입력칸에 맞춘 좌표
+    inputRect: { left: "26%", top: "53.4%", width: "48.4%", height: "8.2%" },
+    // 정답 후 빛이 걷히는 여운. (기존 3초 + 2초)
+    successHoldMs: 5000,
   },
 };
 

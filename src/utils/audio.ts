@@ -36,10 +36,22 @@ function disposeBgm() {
   bgmSrc = null;
 }
 
-/** 퍼즐 BGM을 반복 재생한다. 같은 BGM이 이미 재생 중이면 다시 시작하지 않는다. */
+/**
+ * 퍼즐 BGM을 반복 재생한다.
+ *
+ * 같은 BGM이 "정상 재생 중"일 때만 다시 시작하지 않는다.
+ *
+ * ⚠ 페이드아웃 중(fadeTimer !== null)이면 같은 곡이어도 반드시 다시 시작해야 한다.
+ *   퍼즐 2·3, 4·5, 7·8은 BGM을 공유하는데, 앞 퍼즐 정답의 3초 페이드가 아직 끝나지
+ *   않은 채 다음 퍼즐이 시작되면(무거운 큐시트 이미지 디코딩 등으로 타이머가 밀리면
+ *   충분히 생긴다) 여기서 그냥 return 해버려 페이드가 계속 돌고, 결국 볼륨이 0이 되어
+ *   다음 퍼즐이 무음으로 시작됐다.
+ */
 export function startBgm(src: string, volume: number): void {
-  if (bgmSrc === src && bgmEl && !bgmEl.paused) return;
+  const sameTrackAlreadyPlaying = bgmSrc === src && bgmEl !== null && !bgmEl.paused;
+  if (sameTrackAlreadyPlaying && fadeTimer === null) return;
 
+  // disposeBgm()이 clearFade()도 함께 호출하므로 진행 중이던 페이드가 취소된다.
   disposeBgm();
 
   try {
@@ -189,7 +201,22 @@ export function stopAllPuzzleAudio(): void {
   sfxEls.clear();
 }
 
-/** 디버그 패널용: 현재 재생 중인 오디오 파일명 (지시서 13장) */
-export function getActiveAudioSources(): { bgm: string | null; sfxCount: number } {
-  return { bgm: bgmSrc, sfxCount: sfxEls.size };
+/**
+ * 디버그 패널용: 현재 재생 중인 오디오 상태 (지시서 13장)
+ *
+ * volume까지 내보내는 이유: 파일명만 보면 "BGM 정상"으로 보이지만
+ * 실제로는 페이드가 돌아 볼륨이 0에 가까운 무음일 수 있다.
+ */
+export function getActiveAudioSources(): {
+  bgm: string | null;
+  volume: number | null;
+  fading: boolean;
+  sfxCount: number;
+} {
+  return {
+    bgm: bgmSrc,
+    volume: bgmEl ? Math.round(bgmEl.volume * 100) / 100 : null,
+    fading: fadeTimer !== null,
+    sfxCount: sfxEls.size,
+  };
 }

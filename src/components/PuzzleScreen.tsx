@@ -4,6 +4,7 @@ import { isPuzzleAnswerCorrect } from "../utils/normalizeAnswer";
 import { BGM_FADE_MS, VOLUME, getPuzzleAudio } from "../data/audioManifest";
 import { fadeOutBgm, playSfx, playVoice, startBgm } from "../utils/audio";
 import { CueSheetModal } from "./CueSheetModal";
+import { CueRule } from "./CueRule";
 
 interface PuzzleScreenProps {
   puzzle: PuzzleDefinition;
@@ -21,6 +22,15 @@ const INPUT_RECT = { left: "15.4%", top: "80.1%", width: "39.7%", height: "10.2%
 const CONFIRM_RECT = { left: "57.0%", top: "80.1%", width: "12.3%", height: "10.2%" };
 
 const SUBMIT_COOLDOWN_MS = 500;
+/** 큐시트 로드 실패 시 대체 문구로 넘어가기 전 재시도 횟수 */
+const CUE_MAX_RETRY = 3;
+/** scene 레이아웃 입력줄 기본 위치 (노이즈 퍼즐 7·8) */
+const DEFAULT_SCENE_INPUT_RECT = {
+  left: "16%",
+  top: "83%",
+  width: "68%",
+  height: "11.5%",
+};
 /**
  * 정답 후 다음 단계로 넘어가기까지의 기본 대기 시간.
  * BGM 페이드아웃(3초)이 끝난 뒤 다음 영상이 시작되도록 페이드 길이와 맞춘다.
@@ -45,6 +55,13 @@ export function PuzzleScreen({ puzzle, debug, onSolved, onAttempt }: PuzzleScree
   const [modalOpen, setModalOpen] = useState(false);
   const [frameError, setFrameError] = useState(false);
   const [cueError, setCueError] = useState(false);
+  /**
+   * 큐시트 로드 재시도 횟수.
+   * 3MB짜리 PNG라 회선/디스크가 순간적으로 막히면 한 번씩 로드가 실패할 수 있는데,
+   * 그때 곧바로 대체 문구로 넘어가 버리면 행사 중에 큐시트가 영영 안 보인다.
+   * 그래서 대체 문구로 넘어가기 전에 몇 번 다시 시도한다.
+   */
+  const [cueRetry, setCueRetry] = useState(0);
   // 정답 후 성공 이미지를 전체 화면으로 보여주는 연출 (퍼즐 7·8)
   const [revealing, setRevealing] = useState(false);
 
@@ -68,6 +85,7 @@ export function PuzzleScreen({ puzzle, debug, onSolved, onAttempt }: PuzzleScree
     setShake(false);
     setModalOpen(false);
     setCueError(false);
+    setCueRetry(0);
     setRevealing(false);
 
     const set = getPuzzleAudio(puzzle.id);
@@ -197,14 +215,30 @@ export function PuzzleScreen({ puzzle, debug, onSolved, onAttempt }: PuzzleScree
             </div>
           )}
 
-          {/* 하단 입력줄: 입력창 + 정답 버튼 */}
-          <div className="noise-input-row">
-            <textarea
-              {...commonInputProps}
-              ref={inputRef as React.Ref<HTMLTextAreaElement>}
-              className="noise-input"
-              rows={2}
-            />
+          {/* 입력줄: 입력창 + 정답 버튼.
+              퍼즐 7·8은 화면 하단, 퍼즐 9는 배경에 그려진 입력칸 위에 놓인다. */}
+          <div
+            className="noise-input-row"
+            style={puzzle.inputRect ?? DEFAULT_SCENE_INPUT_RECT}
+          >
+            {/* 장문(7·8)은 textarea, 짧은 답(9)은 input.
+                input이어야 글자가 세로 가운데에 온다. */}
+            {puzzle.longInput ? (
+              <textarea
+                {...commonInputProps}
+                ref={inputRef as React.Ref<HTMLTextAreaElement>}
+                className="noise-input"
+                rows={2}
+              />
+            ) : (
+              <input
+                {...commonInputProps}
+                ref={inputRef as React.Ref<HTMLInputElement>}
+                className="noise-input noise-input--short"
+                type="text"
+                inputMode={puzzle.answerType === "number" ? "numeric" : "text"}
+              />
+            )}
             <button
               type="button"
               className="noise-confirm"
@@ -261,13 +295,26 @@ export function PuzzleScreen({ puzzle, debug, onSolved, onAttempt }: PuzzleScree
               aria-label={`${puzzle.title} 큐시트 확대`}
               onClick={() => setModalOpen(true)}
             >
-              <img
-                className="cue-sheet-image"
-                src={puzzle.cueImageSrc}
-                alt={puzzle.title}
-                draggable={false}
-                onError={() => setCueError(true)}
-              />
+              {/* 큐시트 원본 비율(1672×941) 상자.
+                  이미지가 슬롯 안에서 레터박스로 들어가므로, 안내를 이미지 모서리에
+                  정확히 붙이려면 이미지와 같은 크기의 상자가 필요하다. */}
+              <span className="cue-sheet-frame">
+                <img
+                  className="cue-sheet-image"
+                  // 재시도할 때만 쿼리를 붙여 실패한 캐시를 우회한다
+                  key={cueRetry}
+                  src={cueRetry === 0 ? puzzle.cueImageSrc : `${puzzle.cueImageSrc}?r=${cueRetry}`}
+                  alt={puzzle.title}
+                  draggable={false}
+                  onError={() => {
+                    if (cueRetry < CUE_MAX_RETRY) setCueRetry((r) => r + 1);
+                    else setCueError(true);
+                  }}
+                />
+                {puzzle.cueNote && <span className="cue-note">{puzzle.cueNote}</span>}
+                {puzzle.cueRule && <CueRule text={puzzle.cueRule} />}
+                {puzzle.cueAside && <span className="cue-aside">{puzzle.cueAside}</span>}
+              </span>
             </button>
           ) : (
             // 큐시트 PNG가 준비되기 전까지의 임시 표시. 정답 검증은 정상 동작한다.
@@ -331,6 +378,9 @@ export function PuzzleScreen({ puzzle, debug, onSolved, onAttempt }: PuzzleScree
         <CueSheetModal
           src={puzzle.cueImageSrc}
           alt={puzzle.title}
+          note={puzzle.cueNote}
+          rule={puzzle.cueRule}
+          aside={puzzle.cueAside}
           open={modalOpen}
           onClose={() => setModalOpen(false)}
         />

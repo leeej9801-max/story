@@ -59,6 +59,11 @@ export function DebugPanel({
             <div className="debug-src">
               bgm: {audioInfo.bgm ?? "—"} · sfx: {audioInfo.sfxCount}
             </div>
+            {/* 파일명만으로는 무음인지 알 수 없어 볼륨/페이드 상태도 함께 본다 */}
+            <div className="debug-src">
+              vol: {audioInfo.volume ?? "—"}
+              {audioInfo.fading ? " (페이드 중)" : ""}
+            </div>
             <div className="debug-src">
               solved: {progress.completedPuzzleIds.length} · t=
               {progress.videoCurrentTime.toFixed(1)}s

@@ -134,8 +134,7 @@ export const sequence: SequenceStep[] = [
     nextStepId: "video-07",
   },
 
-  // 영상 7은 아직 제작 중이다. part7.mp4를 public/assets/video/에 넣은 뒤
-  // 아래 pending 줄만 지우면 정상 재생된다.
+  // 퍼즐 9(십자가) 정답 후 재생되는 마지막 영상.
   {
     id: "video-07",
     type: "video",
@@ -143,7 +142,6 @@ export const sequence: SequenceStep[] = [
     src: "/assets/video/part7.mp4",
     nextStepId: "complete",
     allowSkip: false,
-    pending: true,
   },
 
   {

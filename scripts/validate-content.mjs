@@ -90,7 +90,6 @@ for (const block of puzzleSrc.matchAll(/\{\s*\bid:\s*"puzzle-\d+"[\s\S]*?\n  \},
     cue: cueM ? cueM[1] : null,
     background: bgM ? bgM[1] : null,
     successImage: successM ? successM[1] : null,
-    brief: /\bbriefText:\s*$|\bbriefText:\s*"/m.test(text),
     answers: ansM ? ansM[1] : "",
     cuePending: /\bcuePending:\s*true/.test(text),
   };
@@ -156,9 +155,7 @@ for (const p of Object.values(puzzles)) {
     } else if (!assetExists(p.background)) {
       err(`퍼즐 ${p.id}의 배경 이미지가 없습니다: ${p.background}`);
     }
-    if (!p.brief) {
-      warn(`퍼즐 ${p.id}는 layout:"scene"인데 briefText(설명 문구)가 없습니다.`);
-    }
+    // briefText는 선택이다. 배경 이미지에 설명이 이미 인쇄된 경우(퍼즐 9)에는 쓰지 않는다.
     if (p.cue) {
       warn(`퍼즐 ${p.id}는 layout:"scene"이라 cueImageSrc를 쓰지 않습니다: ${p.cue}`);
     }
