@@ -18,7 +18,9 @@ interface PuzzleScreenProps {
 // 나가기(EXIT) 영역은 v2에서 삭제되었다. 프레임 이미지에 '나가기' 문구가 남아 있어도
 // 클릭 영역을 만들지 않는다. (지시서 6.1)
 const CUE_RECT = { left: "15.1%", top: "26.9%", width: "66.1%", height: "49.7%" };
-const INPUT_RECT = { left: "15.4%", top: "80.1%", width: "39.7%", height: "10.2%" };
+// 프레임 이미지에 그려진 입력칸/확인 박스 안에 딱 맞도록 실측·조정한 값.
+// 입력창은 그려진 칸보다 살짝 작게 잡아 테두리를 침범하지 않게 한다.
+const INPUT_RECT = { left: "20.4%", top: "81.4%", width: "33.4%", height: "7.2%" };
 const CONFIRM_RECT = { left: "57.0%", top: "80.1%", width: "12.3%", height: "10.2%" };
 
 const SUBMIT_COOLDOWN_MS = 500;

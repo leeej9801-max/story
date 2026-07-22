@@ -220,11 +220,8 @@
    배치 방식만 다르게 한다(프레임=절대 좌표 / 노이즈=하단 flex 줄). */
 .answer-input,
 .noise-input {
-  background: linear-gradient(
-    180deg,
-    rgba(184, 167, 146, 0.96),
-    rgba(156, 137, 116, 0.96)
-  );
+  /* 불투명하게 덮어 그려진 "정답 입력" 문구가 비치지 않게 한다. */
+  background: linear-gradient(180deg, rgb(184, 167, 146), rgb(156, 137, 116));
   border: 1px solid rgba(46, 34, 22, 0.55);
   border-radius: 6px;
   box-shadow:
